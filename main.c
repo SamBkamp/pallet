@@ -4,9 +4,9 @@
 #include <sys/wait.h>
 
 int child_stuff(){
-  sleep(2);
-  printf("eyyy im processing ova here!\n");
-  sleep(1);
+  char *argv[] = {"/bin/sh", 0};
+  if(execve("/bin/sh", argv, NULL) < 0)
+    perror("execve");
   return 0;
 }
 
@@ -29,9 +29,15 @@ int main(int argc, char* argv[]){
     break;
   default:
     //parent
+    int wstatus;
     printf("waiting on: %d\n", pid);
-    pid_t ret_val = waitpid(pid, NULL, 0);
-    printf("%d exited\n", ret_val);
+    pid_t ret_val = wait(&wstatus);
+
+    //exit handling
+    printf("%d exited ", ret_val);
+    if(WIFEXITED(wstatus))
+      printf("with status %d", WEXITSTATUS(wstatus));
+    fputs("\n", stdout);
     break;
   }
 }
