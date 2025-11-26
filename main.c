@@ -29,7 +29,7 @@ int main(int argc, char* argv[]){
   char *stack = mmap(NULL,
                      STACK_SIZE,
                      PROT_READ | PROT_WRITE,
-                     MAP_PRIVATE | MAP_ANON,
+                     MAP_PRIVATE | MAP_ANON | MAP_GROWSDOWN,
                      -1,
                      0);
   if(stack == MAP_FAILED){
@@ -39,7 +39,9 @@ int main(int argc, char* argv[]){
   char* top_of_stack = stack + STACK_SIZE;
   struct clone_args cl_args = {
     .flags = CLONE_NEWUTS,
-    .exit_signal = SIGCHLD
+    .exit_signal = SIGCHLD,
+    .stack = (uint64_t)top_of_stack,
+    .stack_size = STACK_SIZE
   };
   long pid = syscall(SYS_clone3, &cl_args, sizeof(cl_args));
   switch(pid){
@@ -49,7 +51,8 @@ int main(int argc, char* argv[]){
     break; //idk if this required after a return
   case 0:
     //child
-    return child_stuff();
+    //seed the stack with our function value that will be popped and ret'd
+    *top_of_stack = (uint64_t)child_stuff();
     break;
   default:
     //parent
