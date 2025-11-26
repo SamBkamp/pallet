@@ -13,6 +13,7 @@
 
 int child_stuff(){
   char *argv[] = {"/bin/bash", 0};
+  //sethostname("pallet", 6);
   if(execve("/bin/bash", argv, NULL) < 0)
     perror("execve");
   _exit(0);
@@ -25,6 +26,7 @@ int main(int argc, char* argv[]){
   }
   printf("executing \"%s\"\n", argv[1]);
 
+  /*
   //childs stack
   char *stack = mmap(NULL,
                      STACK_SIZE,
@@ -36,25 +38,24 @@ int main(int argc, char* argv[]){
     perror("[FATAL] mmap");
     return 1;
   }
-  char* top_of_stack = stack + STACK_SIZE;
+  */
+  //pid_t tid_array[] = {1};
   struct clone_args cl_args = {
     .flags = CLONE_NEWUTS,
-    .exit_signal = SIGCHLD,
-    .stack = (uint64_t)top_of_stack,
-    .stack_size = STACK_SIZE
+    .exit_signal = SIGCHLD
   };
   //seed the stack with our function value that will be popped and ret'd
-  *top_of_stack = (uint64_t)child_stuff();
+  //*top_of_stack = (uint64_t)child_stuff;
 
   long pid = syscall(SYS_clone3, &cl_args, sizeof(cl_args));
+  //no need for child case as it rets directly into our child function
   switch(pid){
   case -1:
     perror("[FATAL] Couldn't create child");
     return 1;
     break; //idk if this required after a return
   case 0:
-    //child
-   break;
+    return child_stuff();
   default:
     //parent
     ;

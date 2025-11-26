@@ -1,6 +1,6 @@
-FLAGS := -Wall -Wpedantic
+FLAGS := -Wall -Wpedantic -ggdb
 
 .PHONY: all
 
-all:
+main:main.c
 	cc main.c -o main ${FLAGS}
