@@ -9,11 +9,9 @@
 #include <stdint.h>
 #include <string.h>
 
-#define STACK_SIZE 8192
-
 int child_stuff(){
   char *argv[] = {"/bin/bash", 0};
-  //sethostname("pallet", 6);
+  sethostname("pallet", 6);
   if(execve("/bin/bash", argv, NULL) < 0)
     perror("execve");
   _exit(0);
@@ -26,26 +24,32 @@ int main(int argc, char* argv[]){
   }
   printf("executing \"%s\"\n", argv[1]);
 
-  /*
+  long page_size = sysconf(_SC_PAGE_SIZE);
+
   //childs stack
   char *stack = mmap(NULL,
-                     STACK_SIZE,
+                     page_size,
                      PROT_READ | PROT_WRITE,
-                     MAP_PRIVATE | MAP_ANON | MAP_GROWSDOWN,
+                     MAP_PRIVATE | MAP_ANONYMOUS,
                      -1,
                      0);
   if(stack == MAP_FAILED){
     perror("[FATAL] mmap");
     return 1;
   }
-  */
-  //pid_t tid_array[] = {1};
+  char *top_of_stack = stack+page_size;
+  uint64_t *sp = (uint64_t *)top_of_stack;
+  //seed the stack with our function value that will be popped and ret'd
+  *(--sp) = (uint64_t)child_stuff;
+
+  pid_t tid_array[] = {1};
+  
   struct clone_args cl_args = {
     .flags = CLONE_NEWUTS,
-    .exit_signal = SIGCHLD
+    .exit_signal = SIGCHLD,
+    .stack = (uint64_t)(stack-8), //stack needs to point to the low boundary2
+    .stack_size = page_size
   };
-  //seed the stack with our function value that will be popped and ret'd
-  //*top_of_stack = (uint64_t)child_stuff;
 
   long pid = syscall(SYS_clone3, &cl_args, sizeof(cl_args));
   //no need for child case as it rets directly into our child function
@@ -55,7 +59,7 @@ int main(int argc, char* argv[]){
     return 1;
     break; //idk if this required after a return
   case 0:
-    return child_stuff();
+    break;
   default:
     //parent
     ;
