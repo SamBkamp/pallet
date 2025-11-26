@@ -43,6 +43,9 @@ int main(int argc, char* argv[]){
     .stack = (uint64_t)top_of_stack,
     .stack_size = STACK_SIZE
   };
+  //seed the stack with our function value that will be popped and ret'd
+  *top_of_stack = (uint64_t)child_stuff();
+
   long pid = syscall(SYS_clone3, &cl_args, sizeof(cl_args));
   switch(pid){
   case -1:
@@ -51,9 +54,7 @@ int main(int argc, char* argv[]){
     break; //idk if this required after a return
   case 0:
     //child
-    //seed the stack with our function value that will be popped and ret'd
-    *top_of_stack = (uint64_t)child_stuff();
-    break;
+   break;
   default:
     //parent
     ;
