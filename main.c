@@ -1,19 +1,44 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/wait.h>
-#include <linux/sched.h>    /* Definition of struct clone_args */
-#include <sched.h>          /* Definition of CLONE_* constants */
-#include <sys/syscall.h>    /* Definition of SYS_* constants */
-#include <sys/mman.h>
 #include <stdint.h>
 #include <string.h>
+#include <fcntl.h>
+#include <errno.h>
+
+#include <linux/sched.h>    /* Definition of struct clone_args */
+#include <sched.h>          /* Definition of CLONE_* constants */
+
+#include <sys/syscall.h>    /* Definition of SYS_* constants */
+#include <sys/mman.h>
+#include <sys/mount.h>
+#include <sys/wait.h>
+#include <sys/types.h> /* for mkfifo */
+#include <sys/stat.h>  /* for mkfifo */
 
 int child_stuff(){
-  char *argv[] = {"/bin/bash", 0};
-  sethostname("pallet", 6);
-  if(execve("/bin/bash", argv, NULL) < 0)
-    perror("execve");
+  char root_dir[1024];
+  char program[1024];
+  char *argv[] = {program, 0};
+
+  int fd = open("./dtx.fifo", O_RDONLY); //this will block as long as main thread doesn't open for write
+  int bytes_read = read(fd, program, 1023);
+  program[bytes_read] = 0;
+
+  getcwd(root_dir, 1010);
+  strcat(root_dir, "/fs");
+
+  if(chdir(root_dir) < 0) perror("chdir");
+  if(chroot(root_dir) < 0) perror("chroot");
+  if(mount("proc", "/proc", "proc", 0, NULL) < 0) perror("proc");
+
+  if(sethostname("pallet", 6)<0) perror("sethostname");
+  if(setgid(1002)<0) perror("setgid");
+  if(setuid(1001)<0) perror("setuid");
+  if(chdir("/home/dummy") < 0) perror("local chdir");
+
+  if(execve(argv[0], argv, NULL) < 0) perror("execve");
+
   _exit(0);
 }
 
@@ -22,9 +47,8 @@ int main(int argc, char* argv[]){
     printf("usage: %s <program> \n", argv[0]);
     return 1;
   }
-  printf("executing \"%s\"\n", argv[1]);
-
-  long page_size = sysconf(_SC_PAGE_SIZE);
+  umask(000);
+  long page_size = (sysconf(_SC_PAGE_SIZE)*2);
 
   //childs stack
   char *stack = mmap(NULL,
@@ -37,18 +61,27 @@ int main(int argc, char* argv[]){
     perror("[FATAL] mmap");
     return 1;
   }
+  //could lead to a potential bug where the file exists but we don't have adequate perms to write/read to/from. Very random and probably won't happen but maybe
+  int mk_fifo = mkfifo("./dtx.fifo", S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IWOTH | S_IROTH);
+  if(mk_fifo < 0 && errno != EEXIST){
+    perror("[FATAL] mkfifo");
+    return 1;
+  }
+
   char *top_of_stack = stack+page_size;
   uint64_t *sp = (uint64_t *)top_of_stack;
   //seed the stack with our function value that will be popped and ret'd
   *(--sp) = (uint64_t)child_stuff;
 
   pid_t tid_array[] = {1};
-  
+
   struct clone_args cl_args = {
-    .flags = CLONE_NEWUTS,
+    .flags = CLONE_NEWUTS | CLONE_NEWPID,
     .exit_signal = SIGCHLD,
-    .stack = (uint64_t)(stack-8), //stack needs to point to the low boundary2
-    .stack_size = page_size
+    .stack = (uint64_t)(stack-8), //stack needs to point to the low boundary
+    .stack_size = page_size,
+    .set_tid = (uint64_t)&tid_array,
+    .set_tid_size = 1
   };
 
   long pid = syscall(SYS_clone3, &cl_args, sizeof(cl_args));
@@ -63,15 +96,17 @@ int main(int argc, char* argv[]){
   default:
     //parent
     ;
+    int fd = open("./dtx.fifo", O_WRONLY);
     siginfo_t wstatus = {0};
-    printf("waiting on: %ld\n", pid);
+    write(fd, argv[1], strlen(argv[1]));
+    printf("%ld is running %s\n---------------------\n", pid, argv[1]);
     pid_t ret_val = waitid(P_PID, pid, &wstatus, WEXITED);
     if(ret_val < 0){
       perror("[FATAL] waitid");
       break;
     }
     //exit handling
-    printf("%ld exited with status %d: %s\n", pid, wstatus.si_status, strsignal(wstatus.si_status));
+    printf("-----------------\n%ld exited with status %d: %s\n", pid, wstatus.si_status, strsignal(wstatus.si_status));
     break;
   }
 }
