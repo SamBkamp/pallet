@@ -117,6 +117,13 @@ int main(int argc, char* argv[]){
     }
     //exit handling
     printf("-----------------\n%ld exited with status %d: %s\n", pid, wstatus.si_status, strsignal(wstatus.si_status));
+
+    //allows the child process to fully remove lock on proc
+    int um_proc = umount("fs/proc");
+    while(um_proc < 0 && errno == EBUSY)
+      um_proc = umount("fs/proc");
+    if(um_proc < 0) perror("unmounting proc");
+
     break;
   }
 }
