@@ -14,7 +14,7 @@
 #include <sys/mount.h>
 #include <sys/wait.h>
 #include <sys/types.h> /* for mkfifo */
-#include <sys/stat.h>  /* for mkfifo */
+#include <sys/stat.h>  /* for mkfifo & stat */
 
 int child_stuff(){
   char root_dir[1024];
@@ -30,7 +30,17 @@ int child_stuff(){
 
   if(chdir(root_dir) < 0) perror("chdir");
   if(chroot(root_dir) < 0) perror("chroot");
-  if(mount("proc", "/proc", "proc", 0, NULL) < 0) perror("proc");
+
+  //should we use access() instead?
+  //surely I don't gotta nest 3 fucking ifs for the behaviour I want
+  //god bless the cpu branch predictor
+  struct stat statbuf; //uneeded for now
+  if(stat("/proc/cpuinfo", &statbuf) < 0){
+    if(errno == ENOENT){
+      if(mount("proc", "/proc", "proc", 0, NULL) < 0){perror("proc");}
+    }else
+      perror("stat");
+  }
 
   if(sethostname("pallet", 6)<0) perror("sethostname");
   if(setgid(1002)<0) perror("setgid");
