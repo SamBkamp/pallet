@@ -22,8 +22,8 @@ typedef struct{
 }mount_point;
 
 
-//this is the child function. IT RUNS AS A SEPERATE POROGRAM. Consider this _start(). IMPORTANT: this function has nowhere to return to. returning will probably segfault. You must _exit();
-int child_main(){
+//this is the child function. IT RUNS AS A SEPERATE PROGRAM. Consider this _start(). IMPORTANT: this function has nowhere to return to. returning will probably segfault. You must _exit();
+void child_main(){
   char root_dir[1024];
   char program[1024];
   char *argv[] = {program, 0};
@@ -34,9 +34,15 @@ int child_main(){
                           {"/lib64", "fs/lib64"},
                           {"/bin", "fs/bin"}};
 
+  //privatise "/" mount in child mountns
+  if(mount("ignored", "/", "ignored", MS_PRIVATE|MS_REC, "ignored")<0){
+    perror("privatising / mount"); _exit(1);
+  }
+
+
   //bind mount system files
   for(int i = 0; i < sizeof(mntpts); i++)
-    mount(mntpts[i].host_point, mntpts[i].fs_point, NULL, MS_BIND, NULL);
+    mount(mntpts[i].host_point, mntpts[i].fs_point, NULL, MS_BIND | MS_PRIVATE | MS_REC, NULL);
 
   program[bytes_read] = 0;
 
