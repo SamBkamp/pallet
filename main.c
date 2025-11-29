@@ -16,13 +16,28 @@
 #include <sys/types.h> /* for mkfifo */
 #include <sys/stat.h>  /* for mkfifo & stat */
 
-int child_stuff(){
+typedef struct{
+  char *host_point;
+  char *fs_point;
+}mount_point;
+
+
+//this is the child function. IT RUNS AS A SEPERATE POROGRAM. Consider this _start(). IMPORTANT: this function has nowhere to return to. returning will probably segfault. You must _exit();
+int child_main(){
   char root_dir[1024];
   char program[1024];
   char *argv[] = {program, 0};
-
   int fd = open("./dtx.fifo", O_RDONLY); //this will block as long as main thread doesn't open for write
   int bytes_read = read(fd, program, 1023);
+  mount_point mntpts[] = {{"/lib", "fs/lib"},
+                          {"/lib32", "fs/lib32"},
+                          {"/lib64", "fs/lib64"},
+                          {"/bin", "fs/bin"}};
+
+  //bind mount system files
+  for(int i = 0; i < sizeof(mntpts); i++)
+    mount(mntpts[i].host_point, mntpts[i].fs_point, NULL, MS_BIND, NULL);
+
   program[bytes_read] = 0;
 
   getcwd(root_dir, 1010);
@@ -81,12 +96,12 @@ int main(int argc, char* argv[]){
   char *top_of_stack = stack+page_size;
   uint64_t *sp = (uint64_t *)top_of_stack;
   //seed the stack with our function value that will be popped and ret'd
-  *(--sp) = (uint64_t)child_stuff;
+  *(--sp) = (uint64_t)child_main;
 
   pid_t tid_array[] = {1};
 
   struct clone_args cl_args = {
-    .flags = CLONE_NEWUTS | CLONE_NEWPID,
+    .flags = CLONE_NEWUTS | CLONE_NEWPID | CLONE_NEWNS,
     .exit_signal = SIGCHLD,
     .stack = (uint64_t)(stack-8), //stack needs to point to the low boundary
     .stack_size = page_size,

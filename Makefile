@@ -2,10 +2,8 @@ FLAGS := -Wall -Wpedantic -ggdb
 
 .PHONY: all
 
-all:pallet mount-fs
+all:pallet
 
 pallet:main.c
-	cc main.c -o pallet ${FLAGS}
+	cc $< -o $@ ${FLAGS}
 
-mount-fs:mount-fs.c
-	cc mount-fs.c -o mount-fs ${FLAGS}
