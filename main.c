@@ -16,6 +16,9 @@
 #include <sys/types.h> /* for mkfifo */
 #include <sys/stat.h>  /* for mkfifo & stat */
 
+//error that perrors then quits if return val of a function (i) is < 0
+#define LOG_QUIT_ON_ERR(i, s) {if(i <  0){perror(s); _exit(1);}}
+
 typedef struct{
   char *host_point;
   char *fs_point;
@@ -35,9 +38,7 @@ void child_main(){
                           {"/bin", "fs/bin"}};
 
   //privatise "/" mount in child mountns
-  if(mount("ignored", "/", "ignored", MS_PRIVATE|MS_REC, "ignored")<0){
-    perror("privatising / mount"); _exit(1);
-  }
+  LOG_QUIT_ON_ERR(mount("ignored", "/", "ignored", MS_PRIVATE|MS_REC, "ignored"),"couldn't private / mount");
 
 
   //bind mount system files
@@ -58,7 +59,7 @@ void child_main(){
   struct stat statbuf; //uneeded for now
   if(stat("/proc/cpuinfo", &statbuf) < 0){
     if(errno == ENOENT){
-      if(mount("proc", "/proc", "proc", 0, NULL) < 0){perror("proc");}
+      LOG_QUIT_ON_ERR(mount("proc", "/proc", "proc", 0, NULL), "couldn't mount proc fs");
     }else
       perror("stat");
   }
