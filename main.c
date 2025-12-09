@@ -70,10 +70,10 @@ void child_main(){
       perror("stat");
   }
 
-  if(sethostname("pallet", 6)<0) perror("sethostname");
-  if(setgid(1002)<0) perror("setgid");
-  if(setuid(cfg.uid)<0) perror("setuid");
-  if(chdir("/home/dummy") < 0) perror("local chdir");
+  LOG_QUIT_ON_ERR(sethostname("pallet", 6),"sethostname");
+  LOG_QUIT_ON_ERR(setgid(cfg.gid), "setgid");
+  LOG_QUIT_ON_ERR(setuid(cfg.uid), "setuid");
+  LOG_QUIT_ON_ERR(chdir("/home/dummy"), "local chdir");
 
   if(execve(argv[0], argv, NULL) < 0) perror("execve");
 

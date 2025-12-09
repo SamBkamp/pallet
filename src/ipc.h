@@ -6,6 +6,7 @@
 typedef struct{
   char *program;
   uint32_t uid;
+  uint32_t gid;
 }child_cfg; //config data the child needs
 
 ssize_t serialize(char *mem, char *program, config *cfg);

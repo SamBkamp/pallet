@@ -28,6 +28,10 @@ ssize_t serialize(char *mem, char *program, config *cfg){
   //uid (as a uint32_t)
   memcpy((mem+idx), &(cfg->uid), sizeof(uint32_t));
   idx+=sizeof(uint32_t);
+
+  //gid
+  memcpy((mem+idx), &(cfg->gid), sizeof(uint32_t));
+  idx+= sizeof(uint32_t);
   
   return idx;
 }
@@ -37,6 +41,7 @@ ssize_t serialize(char *mem, char *program, config *cfg){
 void deserialize(char *mem, child_cfg *cfg){
   cfg->program = mem;
   cfg->uid = *((uint32_t *)(mem+strlen(cfg->program)+1));
+  cfg->gid = *((uint32_t *)(mem+strlen(cfg->program)+1+sizeof(uint32_t)));
   //uid offset is start + strlen of program + 1 (for null term.). These bytes will point to the uint32, this is then dereferenced as a uint32_t
   return;
 }
