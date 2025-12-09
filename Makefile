@@ -4,6 +4,6 @@ FLAGS := -Wall -Wpedantic -ggdb
 
 all:pallet
 
-pallet:main.c src/config.c
+pallet:main.c src/config.c src/ipc.c
 	cc $^ -o $@ ${FLAGS}
 
