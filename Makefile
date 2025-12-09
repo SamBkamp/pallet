@@ -4,6 +4,6 @@ FLAGS := -Wall -Wpedantic -ggdb
 
 all:pallet
 
-pallet:main.c
-	cc $< -o $@ ${FLAGS}
+pallet:main.c src/config.c
+	cc $^ -o $@ ${FLAGS}
 

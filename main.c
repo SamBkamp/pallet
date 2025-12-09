@@ -16,6 +16,8 @@
 #include <sys/types.h> /* for mkfifo */
 #include <sys/stat.h>  /* for mkfifo & stat */
 
+#include "src/config.h"
+
 //error that perrors then quits if return val of a function (i) is < 0
 #define LOG_QUIT_ON_ERR(i, s) {if(i <  0){perror(s); _exit(1);}}
 
@@ -37,9 +39,14 @@ void child_main(){
                           {"/lib64", "fs/lib64"},
                           {"/bin", "fs/bin"}};
 
-  //privatise "/" mount in child mountns
-  LOG_QUIT_ON_ERR(mount("ignored", "/", "ignored", MS_PRIVATE|MS_REC, "ignored"),"couldn't private / mount");
+  char *idx = program;
+  idx+=printf("%s\n", idx);
+  uint32_t uid = *((uint32_t *)idx);
+  printf("%d\n", uid);
 
+
+  //privatise "/" mount in child mount ns
+  LOG_QUIT_ON_ERR(mount("ignored", "/", "ignored", MS_PRIVATE|MS_REC, "ignored"),"couldn't private / mount");
 
   //bind mount system files
   for(int i = 0; i < sizeof(mntpts); i++)
@@ -66,7 +73,7 @@ void child_main(){
 
   if(sethostname("pallet", 6)<0) perror("sethostname");
   if(setgid(1002)<0) perror("setgid");
-  if(setuid(1001)<0) perror("setuid");
+  if(setuid(uid)<0) perror("setuid");
   if(chdir("/home/dummy") < 0) perror("local chdir");
 
   if(execve(argv[0], argv, NULL) < 0) perror("execve");
@@ -80,8 +87,8 @@ int main(int argc, char* argv[]){
     return 1;
   }
   umask(000);
+  config cfg;
   long page_size = (sysconf(_SC_PAGE_SIZE)*2);
-
   //childs stack
   char *stack = mmap(NULL,
                      page_size,
@@ -93,6 +100,7 @@ int main(int argc, char* argv[]){
     perror("[FATAL] mmap");
     return 1;
   }
+  LOG_QUIT_ON_ERR(open_config(&cfg), "open config");
   //could lead to a potential bug where the file exists but we don't have adequate perms to write/read to/from. Very random and probably won't happen but maybe
   int mk_fifo = mkfifo("./dtx.fifo", S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IWOTH | S_IROTH);
   if(mk_fifo < 0 && errno != EEXIST){
@@ -128,9 +136,16 @@ int main(int argc, char* argv[]){
   default:
     //parent
     ;
+    char message[1024];
+    int idx = 0;
     int fd = open("./dtx.fifo", O_WRONLY);
     siginfo_t wstatus = {0};
-    write(fd, argv[1], strlen(argv[1]));
+    memcpy(message, argv[1], strlen(argv[1])+1);
+    idx += strlen(argv[1])+1;
+    memcpy((message+idx), &cfg.uid, sizeof(uint32_t));
+    idx+=sizeof(uint32_t);
+
+    write(fd, message, idx);
     printf("%ld is running %s\n---------------------\n", pid, argv[1]);
     pid_t ret_val = waitid(P_PID, pid, &wstatus, WEXITED);
     if(ret_val < 0){
@@ -138,7 +153,7 @@ int main(int argc, char* argv[]){
       break;
     }
     //exit handling
-    printf("-----------------\n%ld exited with status %d: %s\n", pid, wstatus.si_status, strsignal(wstatus.si_status));   
+    printf("-----------------\n%ld exited with status %d: %s\n", pid, wstatus.si_status, strsignal(wstatus.si_status));
 
     break;
   }
